@@ -11,34 +11,29 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Force stop loading after 3 seconds no matter what
+    const timeout = setTimeout(() => setLoading(false), 3000)
+
     async function fetchData() {
       try {
-        const [res1, res2, res3, res4] = await Promise.all([
-          supabase.from('resources').select('id', { count: 'exact', head: true }).eq('status', 'available'),
-          supabase.from('profiles').select('id', { count: 'exact', head: true }),
-          supabase.from('resources').select('id', { count: 'exact', head: true }),
-          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'alumni'),
-        ])
-        setStats({
-          resources: res1.count || 0,
-          users: res2.count || 0,
-          donations: res3.count || 0,
-          mentors: res4.count || 0
-        })
+        const { data: allResources } = await supabase.from('resources').select('*').eq('status', 'available')
+        const { data: allProfiles } = await supabase.from('profiles').select('id, role')
 
-        const { data: recent } = await supabase
-          .from('resources')
-          .select('*')
-          .eq('status', 'available')
-          .order('created_at', { ascending: false })
-          .limit(5)
-        setRecentResources(recent || [])
+        setStats({
+          resources: (allResources || []).length,
+          users: (allProfiles || []).length,
+          donations: (allResources || []).length,
+          mentors: (allProfiles || []).filter(p => p.role === 'alumni').length
+        })
+        setRecentResources((allResources || []).slice(0, 5))
       } catch (err) {
         console.error('Dashboard error:', err)
       }
       setLoading(false)
     }
     fetchData()
+
+    return () => clearTimeout(timeout)
   }, [])
 
   const statCards = [
