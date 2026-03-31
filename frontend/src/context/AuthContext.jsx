@@ -13,32 +13,33 @@ export function AuthProvider({ children }) {
 
   const fetchProfile = async (userId) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
-      console.log('Profile fetch:', { data, error })
       if (data) setProfile(data)
     } catch (err) {
-      console.error('Profile fetch failed:', err)
+      // Profile fetch failed silently
     }
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Session:', session ? 'exists' : 'none')
+    // Force stop loading after 3 seconds no matter what
+    const timeout = setTimeout(() => setLoading(false), 3000)
+
+    // Get initial session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchProfile(session.user.id).then(() => setLoading(false))
-      } else {
-        setLoading(false)
+        await fetchProfile(session.user.id)
       }
-    }).catch(err => {
-      console.error('Session error:', err)
+      setLoading(false)
+    }).catch(() => {
       setLoading(false)
     })
 
+    // Listen for auth changes (login, logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null)
@@ -51,7 +52,10 @@ export function AuthProvider({ children }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signUp = async ({ rollNumber, password, name, role, personalEmail }) => {
