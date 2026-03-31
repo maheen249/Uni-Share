@@ -12,11 +12,27 @@ export default function Mentorship() {
   const [submitting, setSubmitting] = useState(false)
 
   const fetchPosts = async () => {
-    const { data } = await supabase
-      .from('mentorship_posts')
-      .select('*, profiles(name, department, batch_year)')
-      .order('created_at', { ascending: false })
-    setPosts(data || [])
+    try {
+      const { data: postsData } = await supabase
+        .from('mentorship_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      // Fetch alumni profiles separately
+      const alumniIds = [...new Set((postsData || []).map(p => p.alumni_id))]
+      let profilesMap = {}
+      if (alumniIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, name, department, batch_year')
+          .in('id', alumniIds)
+        ;(profilesData || []).forEach(p => { profilesMap[p.id] = p })
+      }
+
+      setPosts((postsData || []).map(p => ({ ...p, profiles: profilesMap[p.alumni_id] || null })))
+    } catch (err) {
+      console.error('Mentorship fetch error:', err)
+    }
     setLoading(false)
   }
 

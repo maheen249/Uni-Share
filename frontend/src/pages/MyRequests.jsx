@@ -10,12 +10,33 @@ export default function MyRequests() {
 
   useEffect(() => {
     async function fetchRequests() {
-      const { data } = await supabase
-        .from('resource_requests')
-        .select('*, resources(title, category, profiles(name))')
-        .eq('requester_id', user.id)
-        .order('created_at', { ascending: false })
-      setRequests(data || [])
+      try {
+        const { data: reqData } = await supabase
+          .from('resource_requests')
+          .select('*')
+          .eq('requester_id', user.id)
+          .order('created_at', { ascending: false })
+
+        // Fetch resource details
+        const resourceIds = [...new Set((reqData || []).map(r => r.resource_id))]
+        let resourceMap = {}
+        if (resourceIds.length > 0) {
+          const { data: resources } = await supabase.from('resources').select('id, title, category, donor_id').in('id', resourceIds)
+          const donorIds = [...new Set((resources || []).map(r => r.donor_id))]
+          let donorMap = {}
+          if (donorIds.length > 0) {
+            const { data: donors } = await supabase.from('profiles').select('id, name').in('id', donorIds)
+            ;(donors || []).forEach(d => { donorMap[d.id] = d })
+          }
+          ;(resources || []).forEach(r => {
+            resourceMap[r.id] = { ...r, profiles: donorMap[r.donor_id] || null }
+          })
+        }
+
+        setRequests((reqData || []).map(r => ({ ...r, resources: resourceMap[r.resource_id] || null })))
+      } catch (err) {
+        console.error('MyRequests error:', err)
+      }
       setLoading(false)
     }
     fetchRequests()

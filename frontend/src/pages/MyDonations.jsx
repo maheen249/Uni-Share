@@ -12,23 +12,43 @@ export default function MyDonations() {
 
   useEffect(() => {
     async function fetchData() {
-      const [{ data: donationData }, { data: requestData }] = await Promise.all([
-        supabase
+      try {
+        // Fetch my donations
+        const { data: donationData } = await supabase
           .from('resources')
           .select('*')
           .eq('donor_id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('resource_requests')
-          .select('*, resources(title, category), profiles(name, email, department)')
-          .eq('resources.donor_id', user.id)
           .order('created_at', { ascending: false })
-      ])
-      setDonations(donationData || [])
-      // Filter requests that belong to user's resources
-      const myResourceIds = (donationData || []).map(d => d.id)
-      const filtered = (requestData || []).filter(r => myResourceIds.includes(r.resource_id))
-      setRequests(filtered)
+        setDonations(donationData || [])
+
+        // Fetch requests for my resources
+        const myResourceIds = (donationData || []).map(d => d.id)
+        if (myResourceIds.length > 0) {
+          const { data: requestData } = await supabase
+            .from('resource_requests')
+            .select('*')
+            .in('resource_id', myResourceIds)
+            .order('created_at', { ascending: false })
+
+          // Fetch requester profiles and resource titles
+          const requesterIds = [...new Set((requestData || []).map(r => r.requester_id))]
+          let profilesMap = {}
+          if (requesterIds.length > 0) {
+            const { data: profiles } = await supabase.from('profiles').select('id, name, email, department').in('id', requesterIds)
+            ;(profiles || []).forEach(p => { profilesMap[p.id] = p })
+          }
+          const resourceMap = {}
+          ;(donationData || []).forEach(d => { resourceMap[d.id] = { title: d.title, category: d.category } })
+
+          setRequests((requestData || []).map(r => ({
+            ...r,
+            profiles: profilesMap[r.requester_id] || null,
+            resources: resourceMap[r.resource_id] || null
+          })))
+        }
+      } catch (err) {
+        console.error('MyDonations error:', err)
+      }
       setLoading(false)
     }
     fetchData()
@@ -51,20 +71,8 @@ export default function MyDonations() {
         .eq('status', 'pending')
     }
 
-    // Refresh
-    const { data } = await supabase
-      .from('resource_requests')
-      .select('*, resources(title, category), profiles(name, email, department)')
-      .order('created_at', { ascending: false })
-    const myResourceIds = donations.map(d => d.id)
-    setRequests((data || []).filter(r => myResourceIds.includes(r.resource_id)))
-
-    const { data: updated } = await supabase
-      .from('resources')
-      .select('*')
-      .eq('donor_id', user.id)
-      .order('created_at', { ascending: false })
-    setDonations(updated || [])
+    // Refresh - just reload the page to get fresh data
+    window.location.reload()
   }
 
   const categoryLabels = {

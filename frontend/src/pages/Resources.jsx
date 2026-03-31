@@ -27,7 +27,7 @@ export default function Resources() {
     setLoading(true)
     let query = supabase
       .from('resources')
-      .select('*, profiles(name, department, batch_year)')
+      .select('*')
       .eq('status', 'available')
       .order('created_at', { ascending: false })
 
@@ -37,7 +37,13 @@ export default function Resources() {
     }
 
     const { data } = await query
-    setResources(data || [])
+    const donorIds = [...new Set((data || []).map(r => r.donor_id))]
+    let profilesMap = {}
+    if (donorIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('id, name, department, batch_year').in('id', donorIds)
+      ;(profiles || []).forEach(p => { profilesMap[p.id] = p })
+    }
+    setResources((data || []).map(r => ({ ...r, profiles: profilesMap[r.donor_id] || null })))
     setLoading(false)
   }
 
