@@ -10,8 +10,13 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const handleLogout = async () => {
-    await signOut()
+    try {
+      await signOut()
+    } catch (e) {
+      // clear local state even if signOut fails
+    }
     navigate('/')
+    window.location.reload()
   }
 
   const links = [
