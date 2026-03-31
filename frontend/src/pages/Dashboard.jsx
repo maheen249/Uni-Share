@@ -13,12 +13,11 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [res1, res2, res3, res4, res5] = await Promise.all([
-          supabase.from('resources').select('*', { count: 'exact', head: true }).eq('status', 'available'),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }),
-          supabase.from('resources').select('*', { count: 'exact', head: true }),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'alumni'),
-          supabase.from('resources').select('*, profiles(name, department)').eq('status', 'available').order('created_at', { ascending: false }).limit(5)
+        const [res1, res2, res3, res4] = await Promise.all([
+          supabase.from('resources').select('id', { count: 'exact', head: true }).eq('status', 'available'),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('resources').select('id', { count: 'exact', head: true }),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'alumni'),
         ])
         setStats({
           resources: res1.count || 0,
@@ -26,9 +25,16 @@ export default function Dashboard() {
           donations: res3.count || 0,
           mentors: res4.count || 0
         })
-        setRecentResources(res5.data || [])
+
+        const { data: recent } = await supabase
+          .from('resources')
+          .select('*')
+          .eq('status', 'available')
+          .order('created_at', { ascending: false })
+          .limit(5)
+        setRecentResources(recent || [])
       } catch (err) {
-        console.error('Dashboard fetch error:', err)
+        console.error('Dashboard error:', err)
       }
       setLoading(false)
     }
@@ -135,7 +141,6 @@ export default function Dashboard() {
                   <p className="font-medium text-gray-900">{r.title}</p>
                   <p className="text-sm text-gray-500">
                     {categoryLabels[r.category] || r.category}
-                    {r.profiles?.name && ` · by ${r.profiles.name}`}
                     {r.subject && ` · ${r.subject}`}
                   </p>
                 </div>
