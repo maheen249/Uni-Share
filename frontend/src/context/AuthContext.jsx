@@ -12,19 +12,30 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setProfile(data)
-    return data
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      console.log('Profile fetch:', { data, error })
+      if (data) setProfile(data)
+    } catch (err) {
+      console.error('Profile fetch failed:', err)
+    }
   }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Session:', session ? 'exists' : 'none')
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) {
+        fetchProfile(session.user.id).then(() => setLoading(false))
+      } else {
+        setLoading(false)
+      }
+    }).catch(err => {
+      console.error('Session error:', err)
       setLoading(false)
     })
 
