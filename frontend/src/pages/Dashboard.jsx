@@ -12,26 +12,24 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchData() {
-      const [
-        { count: resources },
-        { count: users },
-        { count: donations },
-        { count: mentors },
-        { data: recent }
-      ] = await Promise.all([
-        supabase.from('resources').select('*', { count: 'exact', head: true }).eq('status', 'available'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('resources').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'alumni'),
-        supabase.from('resources').select('*, profiles(name, department)').eq('status', 'available').order('created_at', { ascending: false }).limit(5)
-      ])
-      setStats({
-        resources: resources || 0,
-        users: users || 0,
-        donations: donations || 0,
-        mentors: mentors || 0
-      })
-      setRecentResources(recent || [])
+      try {
+        const [res1, res2, res3, res4, res5] = await Promise.all([
+          supabase.from('resources').select('*', { count: 'exact', head: true }).eq('status', 'available'),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }),
+          supabase.from('resources').select('*', { count: 'exact', head: true }),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'alumni'),
+          supabase.from('resources').select('*, profiles(name, department)').eq('status', 'available').order('created_at', { ascending: false }).limit(5)
+        ])
+        setStats({
+          resources: res1.count || 0,
+          users: res2.count || 0,
+          donations: res3.count || 0,
+          mentors: res4.count || 0
+        })
+        setRecentResources(res5.data || [])
+      } catch (err) {
+        console.error('Dashboard fetch error:', err)
+      }
       setLoading(false)
     }
     fetchData()
