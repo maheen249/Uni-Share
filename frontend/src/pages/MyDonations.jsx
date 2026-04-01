@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../context/AuthContext'
 import { Package, Check, X, Clock, FileText } from 'lucide-react'
 
@@ -13,28 +13,17 @@ export default function MyDonations() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // Fetch my donations
-        const { data: donationData } = await supabase
-          .from('resources')
-          .select('*')
-          .eq('donor_id', user.id)
-          .order('created_at', { ascending: false })
+        const { data: donationData } = await db.query('resources', { eq: { donor_id: user.id }, order: 'created_at.desc' })
         setDonations(donationData || [])
 
-        // Fetch requests for my resources
         const myResourceIds = (donationData || []).map(d => d.id)
         if (myResourceIds.length > 0) {
-          const { data: requestData } = await supabase
-            .from('resource_requests')
-            .select('*')
-            .in('resource_id', myResourceIds)
-            .order('created_at', { ascending: false })
+          const { data: requestData } = await db.queryIn('resource_requests', 'resource_id', myResourceIds)
 
-          // Fetch requester profiles and resource titles
           const requesterIds = [...new Set((requestData || []).map(r => r.requester_id))]
           let profilesMap = {}
           if (requesterIds.length > 0) {
-            const { data: profiles } = await supabase.from('profiles').select('id, name, email, department').in('id', requesterIds)
+            const { data: profiles } = await db.queryIn('profiles', 'id', requesterIds, { select: 'id, name, email, department' })
             ;(profiles || []).forEach(p => { profilesMap[p.id] = p })
           }
           const resourceMap = {}
@@ -55,23 +44,12 @@ export default function MyDonations() {
   }, [user.id])
 
   const handleRequest = async (requestId, status, resourceId) => {
-    const { error } = await supabase
-      .from('resource_requests')
-      .update({ status })
-      .eq('id', requestId)
+    const { error } = await db.update('resource_requests', { status }, { eq: { id: requestId } })
 
     if (!error && status === 'accepted') {
-      await supabase.from('resources').update({ status: 'claimed' }).eq('id', resourceId)
-      // Reject other pending requests
-      await supabase
-        .from('resource_requests')
-        .update({ status: 'rejected' })
-        .eq('resource_id', resourceId)
-        .neq('id', requestId)
-        .eq('status', 'pending')
+      await db.update('resources', { status: 'claimed' }, { eq: { id: resourceId } })
     }
 
-    // Refresh - just reload the page to get fresh data
     window.location.reload()
   }
 

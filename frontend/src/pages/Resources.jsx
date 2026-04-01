@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../context/AuthContext'
 import { Search, Filter, FileText, BookOpen, Wrench, PenTool, Package, Tag, Download, MessageSquare } from 'lucide-react'
 
@@ -25,25 +26,27 @@ export default function Resources() {
 
   const fetchResources = async () => {
     setLoading(true)
-    let query = supabase
-      .from('resources')
-      .select('*')
-      .eq('status', 'available')
-      .order('created_at', { ascending: false })
+    try {
+      const eqFilters = { status: 'available' }
+      if (category !== 'all') eqFilters.category = category
 
-    if (category !== 'all') query = query.eq('category', category)
-    if (search.trim()) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,subject.ilike.%${search}%`)
-    }
+      const { data } = await db.search('resources', {
+        eq: eqFilters,
+        searchFields: search.trim() ? ['title', 'description', 'subject'] : [],
+        searchTerm: search.trim(),
+        order: 'created_at.desc'
+      })
 
-    const { data } = await query
-    const donorIds = [...new Set((data || []).map(r => r.donor_id))]
-    let profilesMap = {}
-    if (donorIds.length > 0) {
-      const { data: profiles } = await supabase.from('profiles').select('id, name, department, batch_year').in('id', donorIds)
-      ;(profiles || []).forEach(p => { profilesMap[p.id] = p })
+      const donorIds = [...new Set((data || []).map(r => r.donor_id))]
+      let profilesMap = {}
+      if (donorIds.length > 0) {
+        const { data: profiles } = await db.queryIn('profiles', 'id', donorIds, { select: 'id, name, department, batch_year' })
+        ;(profiles || []).forEach(p => { profilesMap[p.id] = p })
+      }
+      setResources((data || []).map(r => ({ ...r, profiles: profilesMap[r.donor_id] || null })))
+    } catch (err) {
+      console.error('Resources fetch error:', err)
     }
-    setResources((data || []).map(r => ({ ...r, profiles: profilesMap[r.donor_id] || null })))
     setLoading(false)
   }
 
@@ -59,7 +62,7 @@ export default function Resources() {
   const handleRequest = async () => {
     if (!requestModal) return
     setSending(true)
-    const { error } = await supabase.from('resource_requests').insert({
+    const { error } = await db.insert('resource_requests', {
       resource_id: requestModal.id,
       requester_id: user.id,
       message: requestMessage

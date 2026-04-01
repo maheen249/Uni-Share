@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { rollToEmail, parseRollNumber } from '../lib/rollNumber'
 
 const AuthContext = createContext({})
@@ -13,14 +14,10 @@ export function AuthProvider({ children }) {
 
   const fetchProfile = async (userId) => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-      if (data) setProfile(data)
+      const { data } = await db.query('profiles', { eq: { id: userId } })
+      if (data && data.length > 0) setProfile(data[0])
     } catch (err) {
-      // Profile fetch failed silently
+      console.error('Profile fetch error:', err)
     }
   }
 
@@ -92,8 +89,13 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('Sign out error:', err)
+    }
+    // Always clear local state regardless of Supabase response
+    setUser(null)
     setProfile(null)
   }
 

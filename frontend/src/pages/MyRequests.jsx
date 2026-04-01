@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../context/AuthContext'
 import { ClipboardList, Clock, Check, X } from 'lucide-react'
 
@@ -11,21 +11,16 @@ export default function MyRequests() {
   useEffect(() => {
     async function fetchRequests() {
       try {
-        const { data: reqData } = await supabase
-          .from('resource_requests')
-          .select('*')
-          .eq('requester_id', user.id)
-          .order('created_at', { ascending: false })
+        const { data: reqData } = await db.query('resource_requests', { eq: { requester_id: user.id }, order: 'created_at.desc' })
 
-        // Fetch resource details
         const resourceIds = [...new Set((reqData || []).map(r => r.resource_id))]
         let resourceMap = {}
         if (resourceIds.length > 0) {
-          const { data: resources } = await supabase.from('resources').select('id, title, category, donor_id').in('id', resourceIds)
+          const { data: resources } = await db.queryIn('resources', 'id', resourceIds, { select: 'id, title, category, donor_id' })
           const donorIds = [...new Set((resources || []).map(r => r.donor_id))]
           let donorMap = {}
           if (donorIds.length > 0) {
-            const { data: donors } = await supabase.from('profiles').select('id, name').in('id', donorIds)
+            const { data: donors } = await db.queryIn('profiles', 'id', donorIds, { select: 'id, name' })
             ;(donors || []).forEach(d => { donorMap[d.id] = d })
           }
           ;(resources || []).forEach(r => {

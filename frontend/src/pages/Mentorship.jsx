@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../context/AuthContext'
 import { Users, Plus, GraduationCap, Mail, X } from 'lucide-react'
 
@@ -13,19 +13,12 @@ export default function Mentorship() {
 
   const fetchPosts = async () => {
     try {
-      const { data: postsData } = await supabase
-        .from('mentorship_posts')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const { data: postsData } = await db.query('mentorship_posts', { order: 'created_at.desc' })
 
-      // Fetch alumni profiles separately
       const alumniIds = [...new Set((postsData || []).map(p => p.alumni_id))]
       let profilesMap = {}
       if (alumniIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, name, department, batch_year')
-          .in('id', alumniIds)
+        const { data: profilesData } = await db.queryIn('profiles', 'id', alumniIds, { select: 'id, name, department, batch_year' })
         ;(profilesData || []).forEach(p => { profilesMap[p.id] = p })
       }
 
@@ -42,12 +35,12 @@ export default function Mentorship() {
     e.preventDefault()
     if (!form.title) return
     setSubmitting(true)
-    const { error } = await supabase.from('mentorship_posts').insert({
+    const { error } = await db.insert('mentorship_posts', {
       alumni_id: user.id,
       title: form.title,
       description: form.description,
       topic: form.topic,
-      contact_email: form.contactEmail || profile?.email || ''
+      contact_email: form.contactEmail || profile?.personal_email || profile?.email || ''
     })
     setSubmitting(false)
     if (!error) {
@@ -200,7 +193,7 @@ export default function Mentorship() {
                   className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   <Mail className="w-4 h-4" />
-                  Reach out
+                  Reach out via Email
                 </a>
               )}
             </div>

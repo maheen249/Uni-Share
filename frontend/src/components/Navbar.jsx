@@ -13,10 +13,10 @@ export default function Navbar() {
     try {
       await signOut()
     } catch (e) {
-      // clear local state even if signOut fails
+      console.error('Logout error:', e)
     }
-    navigate('/')
-    window.location.reload()
+    // Always force a full page reload to clear all state
+    window.location.href = '/'
   }
 
   const links = [

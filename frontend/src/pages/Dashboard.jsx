@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { BookOpen, Gift, Users, Package, ArrowRight, TrendingUp } from 'lucide-react'
 
 export default function Dashboard() {
@@ -11,13 +11,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Force stop loading after 3 seconds no matter what
-    const timeout = setTimeout(() => setLoading(false), 3000)
+    // Force stop loading after 5 seconds no matter what
+    const timeout = setTimeout(() => {
+      console.log('[Dashboard] Timeout fired - forcing loading=false')
+      setLoading(false)
+    }, 5000)
 
     async function fetchData() {
       try {
-        const { data: allResources } = await supabase.from('resources').select('*').eq('status', 'available')
-        const { data: allProfiles } = await supabase.from('profiles').select('id, role')
+        const { data: allResources } = await db.query('resources', { eq: { status: 'available' }, order: 'created_at.desc' })
+        const { data: allProfiles } = await db.query('profiles', { select: 'id, role' })
 
         setStats({
           resources: (allResources || []).length,

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 import { useAuth } from '../context/AuthContext'
 import { Gift, Upload, X } from 'lucide-react'
 
@@ -30,47 +31,60 @@ export default function Donate() {
     if (!form.title || !form.category) {
       return setError('Title and category are required')
     }
+    if (!user) {
+      return setError('You must be logged in to donate. Please logout and login again.')
+    }
 
     setLoading(true)
     setError('')
 
-    let fileUrl = null
+    try {
+      let fileUrl = null
 
-    // Upload file to Supabase Storage if provided
-    if (file) {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
-      const { data, error: uploadError } = await supabase.storage
-        .from('resources')
-        .upload(fileName, file)
+      // Upload file to Supabase Storage if provided
+      if (file) {
+        try {
+          const fileExt = file.name.split('.').pop()
+          const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
+          const { data: uploadData, error: uploadError } = await db.uploadFile('resources', fileName, file)
 
-      if (uploadError) {
-        setError('File upload failed: ' + uploadError.message)
-        setLoading(false)
-        return
+          if (uploadError) {
+            console.error('[Donate] Upload failed:', uploadError)
+            setError('File upload failed: ' + uploadError.message + '. Saving without file...')
+          } else {
+            fileUrl = uploadData.publicUrl
+          }
+        } catch (uploadErr) {
+          console.error('[Donate] Upload exception:', uploadErr)
+          setError('File upload failed. Saving without file...')
+        }
       }
 
-      const { data: urlData } = supabase.storage.from('resources').getPublicUrl(data.path)
-      fileUrl = urlData.publicUrl
-    }
+      // Insert resource
+      const { data: insertResult, error: insertError } = await db.insert('resources', {
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        donor_id: user.id,
+        file_url: fileUrl,
+        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        semester: form.semester ? parseInt(form.semester) : null,
+        subject: form.subject || null
+      })
 
-    const { error: insertError } = await supabase.from('resources').insert({
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      donor_id: user.id,
-      file_url: fileUrl,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      semester: form.semester ? parseInt(form.semester) : null,
-      subject: form.subject || null
-    })
+      console.log('[Donate] Insert result:', JSON.stringify({ insertResult, insertError }))
 
-    setLoading(false)
-
-    if (insertError) {
-      setError(insertError.message)
-    } else {
-      navigate('/my-donations')
+      if (insertError) {
+        setError('Failed to donate: ' + insertError.message)
+      } else {
+        alert('Resource donated successfully!')
+        navigate('/my-donations')
+      }
+    } catch (err) {
+      console.error('[Donate] Error:', err)
+      setError('Something went wrong: ' + err.message)
+    } finally {
+      setLoading(false)
     }
   }
 
